@@ -929,6 +929,77 @@ function EventosView({uid,esAdmin=false,alumnos=[]}){
   );
 }
 
+// ── CICLO CALENDARIO (admin) ───────────────────────────
+function CicloCalendario({ci,ciclo}){
+  if(!ci||!ciclo)return null;
+  try{
+    const hoy=new Date();
+    const anio=hoy.getFullYear();
+    const mes=hoy.getMonth();
+    const MESES_N=["ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC"];
+    const primerDia=new Date(anio,mes,1).getDay();
+    const offset=(primerDia+6)%7;
+    const diasEnMes=new Date(anio,mes+1,0).getDate();
+    const celdas=Array.from({length:offset+diasEnMes},(_,i)=>i<offset?null:i-offset+1);
+    const diasPeriodo=new Set();
+    const diasOvulacion=new Set();
+    const diasHasta=ci.diasHastaProxima||0;
+    const durMens=ciclo.duracionMenstruacion||5;
+    const inicioProx=new Date(hoy);
+    inicioProx.setDate(inicioProx.getDate()+diasHasta);
+    for(let d=0;d<durMens;d++){
+      const f=new Date(inicioProx);f.setDate(f.getDate()+d);
+      if(f.getMonth()===mes&&f.getFullYear()===anio)diasPeriodo.add(f.getDate());
+    }
+    const inicioOvul=new Date(inicioProx);
+    inicioOvul.setDate(inicioOvul.getDate()+14);
+    for(let d=0;d<3;d++){
+      const f=new Date(inicioOvul);f.setDate(f.getDate()+d);
+      if(f.getMonth()===mes&&f.getFullYear()===anio)diasOvulacion.add(f.getDate());
+    }
+    if(ci.enMenstruacion){
+      const diasRest=(ciclo.duracionMenstruacion||5)-(ci.diaEnCiclo||1)+1;
+      for(let d=0;d<diasRest;d++){
+        const f=new Date(hoy);f.setDate(f.getDate()+d);
+        if(f.getMonth()===mes&&f.getFullYear()===anio)diasPeriodo.add(f.getDate());
+      }
+    }
+    return(
+      <div style={{marginTop:12}}>
+        <div style={{fontSize:7,color:C.pink,letterSpacing:2,marginBottom:6}}>{MESES_N[mes]} {anio} — VISTA DEL CICLO</div>
+        <div style={{display:"flex",gap:10,marginBottom:6,flexWrap:"wrap"}}>
+          {[{c:C.pink,l:"Período"},{c:C.green,l:"Ovulación"},{c:C.blue,l:"Hoy"}].map(x=>(
+            <div key={x.l} style={{display:"flex",alignItems:"center",gap:4}}>
+              <div style={{width:6,height:6,borderRadius:"50%",background:x.c,flexShrink:0}}/>
+              <span style={{fontSize:7,color:C.muted}}>{x.l}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:2}}>
+          {["L","M","X","J","V","S","D"].map(d=><div key={d} style={{textAlign:"center",fontSize:7,color:C.muted,fontWeight:700,padding:"2px 0"}}>{d}</div>)}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+          {celdas.map((dia,i)=>{
+            if(!dia)return <div key={"e"+i}/>;
+            const esHoy=dia===hoy.getDate();
+            const esPer=diasPeriodo.has(dia);
+            const esOvul=diasOvulacion.has(dia);
+            return(
+              <div key={dia} style={{minHeight:26,background:esHoy?C.blueDim:esPer?C.pink+"18":esOvul?C.green+"15":C.surface,border:`1px solid ${esHoy?C.blue:esPer?C.pink+"55":esOvul?C.green+"44":C.border}`,borderRadius:3,padding:"2px 3px",position:"relative"}}>
+                <div style={{fontSize:8,color:esHoy?C.blue:esPer?C.pink:C.muted,fontWeight:esHoy?900:400}}>{dia}</div>
+                {esPer&&<div style={{position:"absolute",top:2,right:2,width:3,height:3,borderRadius:"50%",background:C.pink}}/>}
+                {esOvul&&!esPer&&<div style={{position:"absolute",top:2,right:2,width:3,height:3,borderRadius:"50%",background:C.green}}/>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }catch(err){
+    return null;
+  }
+}
+
 // ── MODAL ALUMNO (admin) ───────────────────────────────
 function AlumnoModal({alumno,onClose,onUpdate,alumnos=[]}){
   const[tab,setTab]=useState("perfil");
