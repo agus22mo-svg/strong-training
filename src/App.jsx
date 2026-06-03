@@ -609,6 +609,102 @@ function DetalleEvento({evento,uid,onClose}){
   );
 }
 
+// ── CICLO ALUMNA FORM ─────────────────────────────────
+function CicloAlumnaForm({uid,cicloActual,onGuardado}){
+  const[open,setOpen]=useState(false);
+  const[fecha,setFecha]=useState(cicloActual?.ultimaMenstruacion||"");
+  const[durCiclo,setDurCiclo]=useState(cicloActual?.duracionCiclo||28);
+  const[durMens,setDurMens]=useState(cicloActual?.duracionMenstruacion||5);
+  const[guardando,setGuardando]=useState(false);
+  const[ok,setOk]=useState(false);
+  const guardar=async()=>{
+    if(!fecha)return;
+    setGuardando(true);
+    const data={ultimaMenstruacion:fecha,duracionCiclo:parseInt(durCiclo)||28,duracionMenstruacion:parseInt(durMens)||5};
+    await updateDoc(doc(db,"usuarios",uid),{ciclo:data});
+    setGuardando(false);setOk(true);
+    setTimeout(()=>{setOk(false);setOpen(false);onGuardado(data);},1500);
+  };
+  return(
+    <div>
+      <button onClick={()=>setOpen(!open)} style={{width:"100%",padding:"9px",background:open?C.surface:C.pinkDim,color:C.pink,border:`1px solid ${C.pink}44`,borderRadius:7,fontFamily:"inherit",fontWeight:700,fontSize:10,letterSpacing:2,cursor:"pointer"}}>
+        {open?"CANCELAR":(cicloActual?"ACTUALIZAR MI CICLO":"CARGAR MI CICLO")}
+      </button>
+      {open&&(
+        <div style={{background:C.pinkDim,border:`1px solid ${C.pink}33`,borderRadius:10,padding:"14px",marginTop:8}}>
+          <div style={{fontSize:9,color:C.pink,letterSpacing:2,marginBottom:12}}>// {cicloActual?"ACTUALIZAR":"CARGAR"} DATOS DE MI CICLO</div>
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:8,color:C.muted,letterSpacing:1.5,marginBottom:4}}>FECHA DE INICIO DEL ÚLTIMO PERÍODO</div>
+            <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={{...inp_s,borderColor:C.pink+"44"}}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+            <div>
+              <div style={{fontSize:8,color:C.muted,letterSpacing:1.5,marginBottom:4}}>DURACIÓN DEL CICLO (días)</div>
+              <input type="number" value={durCiclo} onChange={e=>setDurCiclo(e.target.value)} min="21" max="45" style={{...inp_s,borderColor:C.pink+"44"}}/>
+              <div style={{fontSize:8,color:C.muted,marginTop:3}}>Promedio: 28 días</div>
+            </div>
+            <div>
+              <div style={{fontSize:8,color:C.muted,letterSpacing:1.5,marginBottom:4}}>DURACIÓN DEL PERÍODO (días)</div>
+              <input type="number" value={durMens} onChange={e=>setDurMens(e.target.value)} min="2" max="10" style={{...inp_s,borderColor:C.pink+"44"}}/>
+              <div style={{fontSize:8,color:C.muted,marginTop:3}}>Promedio: 5 días</div>
+            </div>
+          </div>
+          <div style={{background:C.surface,borderRadius:7,padding:"9px 11px",marginBottom:12,fontSize:10,color:C.muted,lineHeight:1.6}}>
+            📌 Estos datos son privados. Solo los ven vos y tu entrenador para adaptar el plan de entrenamiento.
+          </div>
+          <button onClick={guardar} disabled={!fecha||guardando} style={{width:"100%",padding:"10px",background:ok?C.green:!fecha||guardando?C.mutedDim:C.pink,color:C.white,border:"none",borderRadius:7,fontFamily:"inherit",fontWeight:700,fontSize:10,letterSpacing:2,cursor:!fecha||guardando?"default":"pointer",transition:"background .3s"}}>
+            {ok?"✓ GUARDADO":guardando?"GUARDANDO...":"GUARDAR"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ALUMNO PROPONER EVENTO ─────────────────────────────
+function AlumnoProponerEvento({uid,onGuardado}){
+  const[open,setOpen]=useState(false);
+  const[form,setForm]=useState({nombre:"",fecha:"",distancia:"",tipo:"Carrera"});
+  const[guardando,setGuardando]=useState(false);
+  const[ok,setOk]=useState(false);
+  const[nombreAlumno,setNombreAlumno]=useState("");
+  useEffect(()=>{
+    getDoc(doc(db,"usuarios",uid)).then(s=>{if(s.exists())setNombreAlumno(s.data().nombre||"Alumno");});
+  },[uid]);
+  const proponer=async()=>{
+    if(!form.nombre||!form.fecha||guardando)return;
+    setGuardando(true);
+    await addDoc(collection(db,"eventos"),{...form,estado:"pendiente",propuestoPor:nombreAlumno,propuestoPorUid:uid,inscriptos:[],creadoEn:serverTimestamp()});
+    setForm({nombre:"",fecha:"",distancia:"",tipo:"Carrera"});
+    setGuardando(false);setOk(true);
+    setTimeout(()=>{setOk(false);setOpen(false);onGuardado();},1800);
+  };
+  return(
+    <div style={{marginBottom:12}}>
+      <button onClick={()=>setOpen(!open)} style={{width:"100%",padding:"8px",background:open?C.surface:"none",color:C.blue,border:`1px solid ${open?C.border:C.blue+"66"}`,borderRadius:7,fontFamily:"inherit",fontWeight:700,fontSize:10,letterSpacing:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+        <span style={{fontSize:14,lineHeight:1}}>+</span>{open?"CANCELAR":"PROPONER UN EVENTO"}
+      </button>
+      {open&&(
+        <div style={{background:C.card,border:`1px solid ${C.borderHi}`,borderRadius:10,padding:"14px",marginTop:8}}>
+          <div style={{fontSize:9,color:C.blue,letterSpacing:2,marginBottom:8}}>// PROPONER EVENTO</div>
+          <div style={{fontSize:10,color:C.muted,marginBottom:12,lineHeight:1.6}}>Tu propuesta será revisada por el entrenador antes de aparecer en el calendario.</div>
+          <div style={{display:"flex",flexDirection:"column",gap:9}}>
+            <div><div style={{fontSize:8,color:C.muted,letterSpacing:1.5,marginBottom:3}}>NOMBRE DEL EVENTO</div><input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})} placeholder="Ej: 10K Villa María" style={inp_s}/></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <div><div style={{fontSize:8,color:C.muted,letterSpacing:1.5,marginBottom:3}}>FECHA</div><input type="date" value={form.fecha} onChange={e=>setForm({...form,fecha:e.target.value})} style={inp_s}/></div>
+              <div><div style={{fontSize:8,color:C.muted,letterSpacing:1.5,marginBottom:3}}>TIPO</div><select value={form.tipo} onChange={e=>setForm({...form,tipo:e.target.value})} style={inp_s}>{["Carrera","Trail","Triatlón","Entrenamiento","Otro"].map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+            </div>
+            <div><div style={{fontSize:8,color:C.muted,letterSpacing:1.5,marginBottom:3}}>DISTANCIA (opcional)</div><input value={form.distancia} onChange={e=>setForm({...form,distancia:e.target.value})} placeholder="Ej: 10K, 21K" style={inp_s}/></div>
+            <button onClick={proponer} disabled={!form.nombre||!form.fecha||guardando} style={{padding:"10px",background:ok?C.green:!form.nombre||!form.fecha?C.mutedDim:C.blue,color:C.white,border:"none",borderRadius:7,fontFamily:"inherit",fontWeight:700,fontSize:10,letterSpacing:2,cursor:!form.nombre||!form.fecha||guardando?"default":"pointer",transition:"background .3s"}}>
+              {ok?"✓ PROPUESTA ENVIADA":guardando?"ENVIANDO...":"ENVIAR PROPUESTA"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── EVENTOS (admin + alumno compartido) ────────────────
 function EventosView({uid,esAdmin=false,alumnos=[]}){
   const[eventos,setEventos]=useState([]);
@@ -625,6 +721,8 @@ function EventosView({uid,esAdmin=false,alumnos=[]}){
     try{const snap=await getDocs(query(collection(db,"eventos"),orderBy("fecha")));setEventos(snap.docs.map(d=>({id:d.id,...d.data()})));}catch(e){setEventos([]);}
     setLoading(false);
   };
+  const aprobarEvento=async(id)=>{await updateDoc(doc(db,"eventos",id),{estado:"aprobado"});cargar();};
+  const rechazarEvento=async(id)=>{await deleteDoc(doc(db,"eventos",id));cargar();};
   useEffect(()=>{cargar();},[]);
 
   const guardar=async()=>{
@@ -642,7 +740,9 @@ function EventosView({uid,esAdmin=false,alumnos=[]}){
   const offset=(primerDia+6)%7;
   const diasEnMes=new Date(anioActual,mesActual+1,0).getDate();
   const celdas=Array.from({length:offset+diasEnMes},(_,i)=>i<offset?null:i-offset+1);
-  const eventosDelMes=eventos.filter(e=>{if(!e.fecha)return false;const[y,m]=e.fecha.split("-").map(Number);return y===anioActual&&m-1===mesActual;});
+  const eventosAprobados=eventos.filter(e=>!e.estado||e.estado==="aprobado");
+  const eventosPendientes=eventos.filter(e=>e.estado==="pendiente");
+  const eventosDelMes=eventosAprobados.filter(e=>{if(!e.fecha)return false;const[y,m]=e.fecha.split("-").map(Number);return y===anioActual&&m-1===mesActual;});
   const eventosDelDia=dia=>eventosDelMes.filter(e=>parseInt(e.fecha.split("-")[2])===dia);
   const prevMes=()=>{if(mesActual===0){setMesActual(11);setAnioActual(a=>a-1);}else setMesActual(m=>m-1);};
   const nextMes=()=>{if(mesActual===11){setMesActual(0);setAnioActual(a=>a+1);}else setMesActual(m=>m+1);};
@@ -671,7 +771,10 @@ function EventosView({uid,esAdmin=false,alumnos=[]}){
       )}
 
       {!esAdmin&&(
-        <div style={{fontSize:9,color:C.muted,letterSpacing:3,marginBottom:14}}>CALENDARIO DE EVENTOS</div>
+        <div>
+          <div style={{fontSize:9,color:C.muted,letterSpacing:3,marginBottom:10}}>CALENDARIO DE EVENTOS</div>
+          <AlumnoProponerEvento uid={uid} onGuardado={cargar}/>
+        </div>
       )}
 
       {/* Form nuevo evento (solo admin) */}
@@ -724,10 +827,41 @@ function EventosView({uid,esAdmin=false,alumnos=[]}){
       </div>
 
       {/* Lista eventos */}
+      {esAdmin&&eventosPendientes.length>0&&(
+        <div style={{background:C.card,border:`1px solid ${C.amber}44`,borderRadius:12,overflow:"hidden",marginBottom:12}}>
+          <div style={{padding:"9px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:9,color:C.amber,letterSpacing:2}}>EVENTOS PROPUESTOS POR ALUMNOS</span>
+            <span style={{background:C.amber+"22",color:C.amber,borderRadius:10,padding:"1px 7px",fontSize:10,fontWeight:700}}>{eventosPendientes.length}</span>
+          </div>
+          {eventosPendientes.map((e,i)=>{
+            const[ye,me,de]=e.fecha?e.fecha.split("-").map(Number):[0,0,0];
+            return(
+              <div key={e.id} style={{padding:"10px 14px",borderBottom:i<eventosPendientes.length-1?`1px solid ${C.border}`:"none",display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:36,height:36,background:C.surface,borderRadius:6,border:`1px solid ${C.amber}44`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <span style={{fontSize:11,fontWeight:900,color:C.amber,lineHeight:1}}>{de||"—"}</span>
+                  <span style={{fontSize:6,color:C.muted,letterSpacing:1}}>{me?MESES[me-1].slice(0,3).toUpperCase():"—"}</span>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:12,color:C.white}}>{e.nombre}</div>
+                  <div style={{fontSize:9,color:C.muted,marginTop:2}}>Propuesto por: <span style={{color:C.amber}}>{e.propuestoPor||"Alumno"}</span></div>
+                  <div style={{display:"flex",gap:5,marginTop:3,flexWrap:"wrap"}}>
+                    <Tag color={C.amber}>{e.tipo}</Tag>
+                    {e.distancia&&<Tag color={C.muted}>{e.distancia}</Tag>}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <button onClick={()=>aprobarEvento(e.id)} style={{padding:"5px 10px",background:C.green,color:C.bg,border:"none",borderRadius:5,fontFamily:"inherit",fontWeight:700,fontSize:9,cursor:"pointer"}}>APROBAR</button>
+                  <button onClick={()=>rechazarEvento(e.id)} style={{padding:"5px 10px",background:"none",color:C.red,border:`1px solid ${C.red}44`,borderRadius:5,fontFamily:"inherit",fontWeight:700,fontSize:9,cursor:"pointer"}}>RECHAZAR</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
         <div style={{padding:"9px 14px",borderBottom:`1px solid ${C.border}`}}><span style={{fontSize:9,color:C.muted,letterSpacing:2}}>PRÓXIMOS EVENTOS</span></div>
-        {eventos.length===0&&<div style={{padding:20,textAlign:"center",color:C.muted,fontSize:12}}>No hay eventos cargados todavía.</div>}
-        {eventos.map((e,i)=>{
+        {eventosAprobados.length===0&&<div style={{padding:20,textAlign:"center",color:C.muted,fontSize:12}}>No hay eventos cargados todavía.</div>}
+        {eventosAprobados.map((e,i)=>{
           const[ye,me,de]=e.fecha?e.fecha.split("-").map(Number):[0,0,0];
           const ins=getInscriptosEvento(e);
           const miInscripcion=e.inscriptos?.find(i=>i.uid===uid);
@@ -1293,7 +1427,10 @@ function AlumnoView({user}){
                     <div style={{fontSize:11,color:C.white,lineHeight:1.6}}>{ci.fase==="Menstruación"?"Priorizá el descanso. Movilidad suave, sin cargas intensas los primeros 2 días.":ci.fase==="Folicular"?"Fase de alta energía. Ideal para intervalos y fuerza.":ci.fase==="Ovulación"?"Pico de rendimiento. Aprovechá para tus mejores sesiones.":"Energía más baja. Mantené el volumen pero bajá la intensidad."}</div>
                   </div>
                 </div>
-              ):<div style={{color:C.muted,fontSize:12,textAlign:"center",padding:16}}>Sin datos cargados.</div>}
+              ):<div style={{color:C.muted,fontSize:12,textAlign:"center",padding:"12px 0 16px"}}>Aún no cargaste los datos de tu ciclo.</div>}
+              <div style={{marginTop:12}}>
+                <CicloAlumnaForm uid={user.uid} cicloActual={perfil.ciclo} onGuardado={data=>{setPerfil(prev=>({...prev,ciclo:data}));}}/>
+              </div>
             </div>
           )}
 
