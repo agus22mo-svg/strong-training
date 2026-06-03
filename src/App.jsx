@@ -79,8 +79,18 @@ function AuthScreen({onAuth}){
   const[email,setEmail]=useState(""),[ pass,setPass]=useState(""),[ nombre,setNombre]=useState(""),[ error,setError]=useState(""),[ loading,setLoading]=useState(false);
   const inp={...inp_s,padding:"12px 14px",fontSize:13};
 
+  // Cargar email guardado
+  useEffect(()=>{
+    const saved=localStorage.getItem("strong_email");
+    if(saved){setEmail(saved);setRecordar(true);}
+  },[]);
+
+  const[recordar,setRecordar]=useState(false);
+
   const handleLogin=async()=>{
     setError("");setLoading(true);
+    if(recordar)localStorage.setItem("strong_email",email);
+    else localStorage.removeItem("strong_email");
     try{
       const cred=await signInWithEmailAndPassword(auth,email,pass);
       const snap=await getDoc(doc(db,"usuarios",cred.user.uid));
@@ -140,6 +150,14 @@ function AuthScreen({onAuth}){
           {mode==="register"&&<div style={{marginBottom:12}}><div style={{fontSize:9,color:C.muted,letterSpacing:2,marginBottom:5}}>NOMBRE COMPLETO</div><input value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Tu nombre" style={inp} onFocus={e=>e.target.style.border=`1px solid ${C.blue}`} onBlur={e=>e.target.style.border=`1px solid ${C.border}`}/></div>}
           <div style={{marginBottom:12}}><div style={{fontSize:9,color:C.muted,letterSpacing:2,marginBottom:5}}>EMAIL</div><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" style={inp} onFocus={e=>e.target.style.border=`1px solid ${C.blue}`} onBlur={e=>e.target.style.border=`1px solid ${C.border}`} onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleRegister())}/></div>
           <div style={{marginBottom:20}}><div style={{fontSize:9,color:C.muted,letterSpacing:2,marginBottom:5}}>CONTRASEÑA</div><input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••••" style={inp} onFocus={e=>e.target.style.border=`1px solid ${C.blue}`} onBlur={e=>e.target.style.border=`1px solid ${C.border}`} onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleRegister())}/>{mode==="register"&&<div style={{fontSize:9,color:C.muted,marginTop:5}}>Mínimo 6 caracteres</div>}</div>
+          {mode==="login"&&(
+            <div onClick={()=>setRecordar(r=>!r)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,cursor:"pointer",userSelect:"none"}}>
+              <div style={{width:16,height:16,border:`2px solid ${recordar?C.blue:C.border}`,borderRadius:4,background:recordar?C.blue:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all .2s"}}>
+                {recordar&&<span style={{color:C.white,fontSize:10,lineHeight:1}}>✓</span>}
+              </div>
+              <span style={{fontSize:11,color:C.muted}}>Recordar mi email en este dispositivo</span>
+            </div>
+          )}
           {error&&<div style={{background:C.red+"15",border:`1px solid ${C.red}44`,borderRadius:6,padding:"8px 12px",marginBottom:14,fontSize:11,color:C.red}}>{error}</div>}
           <button onClick={mode==="login"?handleLogin:handleRegister} style={{width:"100%",padding:"12px",background:loading?C.mutedDim:C.blue,color:C.white,border:"none",borderRadius:8,fontFamily:"inherit",fontWeight:900,fontSize:13,letterSpacing:3,cursor:loading?"default":"pointer",transition:"all .2s"}}>
             {loading?"PROCESANDO...":(mode==="login"?"INGRESAR":"SOLICITAR ACCESO")}
@@ -729,7 +747,7 @@ function EventosView({uid,esAdmin=false,alumnos=[]}){
     if(!form.nombre||!form.fecha||guardando)return;
     setGuardando(true);
     const distanciasArr=form.distancias?form.distancias.split(",").map(d=>d.trim()).filter(Boolean):[];
-    await addDoc(collection(db,"eventos"),{...form,distancias:distanciasArr,inscriptos:[],creadoEn:serverTimestamp()});
+    await addDoc(collection(db,"eventos"),{...form,url:form.url||"",distancias:distanciasArr,inscriptos:[],creadoEn:serverTimestamp()});
     setForm({nombre:"",fecha:"",distancia:"",tipo:"Carrera",descripcion:"",distancias:""});
     setMostrarForm(false);await cargar();setGuardando(false);
   };
@@ -788,6 +806,7 @@ function EventosView({uid,esAdmin=false,alumnos=[]}){
             <div><div style={{fontSize:8,color:C.muted,letterSpacing:1.5,marginBottom:4}}>DISTANCIA PRINCIPAL</div><input value={form.distancia} onChange={e=>setForm({...form,distancia:e.target.value})} placeholder="Ej: 42km" style={{...inp_s,padding:"10px 12px"}}/></div>
             <div><div style={{fontSize:8,color:C.muted,letterSpacing:1.5,marginBottom:4}}>DISTANCIAS DISPONIBLES (separadas por coma)</div><input value={form.distancias} onChange={e=>setForm({...form,distancias:e.target.value})} placeholder="Ej: 5K, 10K, 21K" style={{...inp_s,padding:"10px 12px"}}/></div>
             <div style={{gridColumn:"1/-1"}}><div style={{fontSize:8,color:C.muted,letterSpacing:1.5,marginBottom:4}}>DESCRIPCIÓN</div><textarea value={form.descripcion} onChange={e=>setForm({...form,descripcion:e.target.value})} placeholder="Info adicional del evento..." style={{...inp_s,padding:"10px 12px",minHeight:60,resize:"vertical"}}/></div>
+            <div style={{gridColumn:"1/-1"}}><div style={{fontSize:8,color:C.muted,letterSpacing:1.5,marginBottom:4}}>LINK (sitio web o Instagram)</div><input value={form.url||""} onChange={e=>setForm({...form,url:e.target.value})} placeholder="Ej: www.10klaplata.com.ar o @mediamaratonrosario" style={{...inp_s,padding:"10px 12px"}}/></div>
           </div>
           <button onClick={guardar} disabled={guardando} style={{width:"100%",marginTop:12,padding:"11px",background:guardando?C.mutedDim:C.blue,color:C.white,border:"none",borderRadius:8,fontFamily:"inherit",fontWeight:900,fontSize:11,letterSpacing:2,cursor:guardando?"default":"pointer"}}>
             {guardando?"GUARDANDO...":"GUARDAR EVENTO"}
@@ -1045,13 +1064,22 @@ function AlumnoModal({alumno,onClose,onUpdate,alumnos=[]}){
                   {ci.alertaProxima&&<div style={{background:C.amber+"12",border:`1px solid ${C.amber}44`,borderRadius:8,padding:"9px 12px",marginBottom:10,display:"flex",gap:8,alignItems:"center"}}><span>🗓️</span><div><div style={{fontSize:11,color:C.amber,fontWeight:700}}>MENSTRUACIÓN EN {ci.diasHastaProxima}D</div></div></div>}
                   <div style={{background:C.pinkDim,border:`1px solid ${C.pink}33`,borderRadius:10,padding:"13px"}}>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-                      {[{label:"FASE",value:ci.fase,color:faseColor[ci.fase]||C.muted},{label:"DÍA",value:`${ci.diaEnCiclo}/${ci.durCiclo}`,color:C.white},{label:"PRÓXIMA",value:`${ci.diasHastaProxima}d`,color:ci.diasHastaProxima<=3?C.pink:C.muted},{label:"ESTADO",value:ci.enMenstruacion?"En curso":"Activo",color:ci.enMenstruacion?C.pink:C.green}].map(item=>(
-                        <div key={item.label} style={{background:C.card,borderRadius:7,padding:"8px 10px"}}><div style={{fontSize:7,color:C.muted,letterSpacing:1.5,marginBottom:2}}>{item.label}</div><div style={{fontSize:11,fontWeight:700,color:item.color}}>{item.value}</div></div>
-                      ))}
+                      {[
+                      {label:"FASE",value:ci.fase,color:faseColor[ci.fase]||C.muted},
+                      {label:"DÍA DEL CICLO",value:`${ci.diaEnCiclo} / ${ci.durCiclo}`,color:C.white},
+                      {label:"PRÓXIMO PERÍODO",value:`En ${ci.diasHastaProxima}d`,color:ci.diasHastaProxima<=3?C.pink:C.muted},
+                      {label:"OVULACIÓN EST.",value:(()=>{const diasOvul=14-(ci.diaEnCiclo);return diasOvul>0?`En ~${diasOvul}d`:"Esta semana";})(),color:C.green},
+                      {label:"DURACIÓN CICLO",value:`${ci.durCiclo} días`,color:C.white},
+                      {label:"DURACIÓN PERÍODO",value:`${ci.durMens} días`,color:C.white},
+                    ].map(item=>(
+                      <div key={item.label} style={{background:C.card,borderRadius:7,padding:"8px 10px"}}><div style={{fontSize:7,color:C.muted,letterSpacing:1.5,marginBottom:2}}>{item.label}</div><div style={{fontSize:11,fontWeight:700,color:item.color}}>{item.value}</div></div>
+                    ))}
                     </div>
                   </div>
+                  {/* Calendario del mes con ciclo marcado */}
+                  <CicloCalendario ci={ci} ciclo={alumno.ciclo}/>
                 </div>
-              ):<div style={{color:C.muted,fontSize:12,textAlign:"center",padding:20}}>Sin datos de ciclo.</div>}
+              ):<div style={{color:C.muted,fontSize:12,textAlign:"center",padding:20}}>Sin datos de ciclo. La alumna debe cargar su período.</div>}
             </div>
           )}
 
@@ -1280,9 +1308,17 @@ function AlumnoView({user}){
   const esGymYRunning=perfil.tipo==="Running + Gym";
   const planActivo=planSubTab==="gym"?planGym:planRunning;
   const colActiva=planSubTab==="gym"?"planGym":"plan";
-  const completadosEntren=planActivo.filter(d=>d.completado&&d.tipo!=="Descanso").length;
-  const totalEntren=planActivo.filter(d=>d.tipo!=="Descanso").length;
+  // Progreso automático calculado desde entrenamientos completados
+  const totalEntrenR=planRunning.filter(d=>d.tipo!=="Descanso").length;
+  const totalEntrenG=planGym.filter(d=>d.tipo!=="Descanso").length;
+  const totalEntren=totalEntrenR+totalEntrenG;
+  const completadosEntren=planRunning.filter(d=>d.completado&&d.tipo!=="Descanso").length+planGym.filter(d=>d.completado&&d.tipo!=="Descanso").length;
   const porcentaje=totalEntren>0?Math.round((completadosEntren/totalEntren)*100):0;
+  // Sincronizar HOY con el día real de la semana
+  const DIAS_MAP={"0":"DOM","1":"LUN","2":"MAR","3":"MIÉ","4":"JUE","5":"VIE","6":"SÁB"};
+  const diaHoy=DIAS_MAP[new Date().getDay().toString()]||"LUN";
+  const entrenamientoHoyR=planRunning.find(d=>d.dia===diaHoy);
+  const entrenamientoHoyG=planGym.find(d=>d.dia===diaHoy);
   const hoy=planActivo.find(d=>!d.completado&&d.tipo!=="Descanso");
   const ps=planStatus(perfil.planDias);
   const pg=payStatus(perfil.pagado,perfil.diasVencido);
@@ -1303,10 +1339,10 @@ function AlumnoView({user}){
           <Slashes size={8}/>
         </div>
         <div style={{fontSize:8,color:C.muted,letterSpacing:2,marginBottom:3}}>PROGRESO DEL CICLO</div>
-        <Bar value={perfil.progreso||0} color={C.blue} height={4}/>
+        <Bar value={porcentaje} color={C.blue} height={4}/>
         <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
           <span style={{fontSize:8,color:C.muted}}>{perfil.tipo||"Sin plan"}</span>
-          <span style={{fontSize:8,color:C.blue,fontWeight:700}}>{perfil.progreso||0}%</span>
+          <span style={{fontSize:8,color:C.blue,fontWeight:700}}>{porcentaje}%</span>
         </div>
       </div>
 
