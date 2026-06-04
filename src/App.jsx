@@ -384,47 +384,147 @@ function CargarDia({diaData,uid,coleccion,onClose}){
 }
 
 // ── CARGAR PLAN SEMANA (admin) ─────────────────────────
-function PlanSemanaAdmin({uid,coleccion,planActual,onClose}){
+const DIAS_OPCIONES=["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"];
+const DIAS_IDX={"LUN":0,"MAR":1,"MIÉ":2,"JUE":3,"VIE":4,"SÁB":5,"DOM":6};
+
+function PlanSemanaAdmin({uid,coleccion,planActual,fechaInicioPlan,onClose,onFechaInicio}){
   const esGym=coleccion==="planGym";
   const color=esGym?C.amber:C.blue;
   const[diaEdit,setDiaEdit]=useState(null);
-  const[plan,setPlan]=useState(
-    DIAS_SEMANA.map((dia,i)=>{
-      const found=planActual.find(d=>d.dia===dia);
-      return found?{...found,completado:false}:{dia,orden:i+1,tipo:"Descanso",detalle:"",distancia:"",ritmo:"",series:"",descanso:"",carga:"",frecuencia:"",comentario:"",ejercicios:[],completado:false};
-    })
-  );
+  const[plan,setPlan]=useState(planActual||[]);
+  const[mostrarSelectorDia,setMostrarSelectorDia]=useState(false);
+  const[semanaNew,setSemanaNew]=useState(1);
+  const[fechaInicio,setFechaInicio]=useState(fechaInicioPlan||"");
+  const[guardandoFecha,setGuardandoFecha]=useState(false);
+  const[fechaOk,setFechaOk]=useState(false);
 
   const recargar=async()=>{
-    const snap=await getDocs(query(collection(db,"usuarios",uid,coleccion),orderBy("orden")));
-    const loaded=snap.docs.map(d=>({id:d.id,...d.data()}));
-    setPlan(DIAS_SEMANA.map((dia,i)=>{
-      const found=loaded.find(d=>d.dia===dia);
-      return found?{...found,completado:false}:{dia,orden:i+1,tipo:"Descanso",detalle:"",distancia:"",ritmo:"",series:"",descanso:"",carga:"",frecuencia:"",comentario:"",ejercicios:[],completado:false};
-    }));
+    try{
+      const snap=await getDocs(query(collection(db,"usuarios",uid,coleccion),orderBy("semana"),orderBy("orden")));
+      setPlan(snap.docs.map(d=>({id:d.id,...d.data()})));
+    }catch(e){
+      try{
+        const snap2=await getDocs(query(collection(db,"usuarios",uid,coleccion),orderBy("orden")));
+        setPlan(snap2.docs.map(d=>({id:d.id,...d.data()})));
+      }catch(e2){console.error(e2);}
+    }
   };
+
+  const guardarFechaInicio=async()=>{
+    if(!fechaInicio)return;
+    setGuardandoFecha(true);
+    const campo=esGym?"planGymInicio":"planInicio";
+    await updateDoc(doc(db,"usuarios",uid),{[campo]:fechaInicio});
+    if(onFechaInicio)onFechaInicio(fechaInicio);
+    setGuardandoFecha(false);setFechaOk(true);
+    setTimeout(()=>setFechaOk(false),2000);
+  };
+
+  const eliminarDia=async(diaId)=>{
+    if(!diaId)return;
+    await deleteDoc(doc(db,"usuarios",uid,coleccion,diaId));
+    recargar();
+  };
+
+  const semanas=[...new Set(plan.map(d=>d.semana||1))].sort((a,b)=>a-b);
+  if(semanas.length===0)semanas.push(1);
+  const maxSemana=semanas.length>0?Math.max(...semanas):1;
 
   return(
     <div style={{padding:16}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <div style={{fontSize:9,color:color,letterSpacing:3,fontWeight:700}}>// PLAN {esGym?"GYM":"RUNNING"} — SEMANA</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        <div style={{fontSize:9,color:color,letterSpacing:3,fontWeight:700}}>// PLAN {esGym?"GYM":"RUNNING"}</div>
         <button onClick={onClose} style={{padding:"4px 10px",background:"none",border:`1px solid ${C.border}`,borderRadius:5,color:C.muted,fontSize:9,fontFamily:"inherit",cursor:"pointer"}}>CERRAR</button>
       </div>
-      <div style={{fontSize:10,color:C.muted,marginBottom:12,lineHeight:1.5}}>Hacé click en cada día para editar el detalle del entrenamiento.</div>
-      {plan.map((d,i)=>(
-        <div key={d.dia}>
-          <div onClick={()=>setDiaEdit(d)} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0",cursor:"pointer",transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=".7"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
-            <div style={{width:32,fontSize:10,fontWeight:900,color:color}}>{d.dia}</div>
-            <div style={{width:6,height:6,borderRadius:"50%",background:d.tipo==="Descanso"?C.border:color,flexShrink:0}}/>
-            <div style={{flex:1}}>
-              <div style={{fontSize:12,fontWeight:600,color:d.tipo==="Descanso"?C.muted:C.white}}>{d.tipo}</div>
-              {d.detalle&&<div style={{fontSize:9,color:C.muted}}>{d.detalle}</div>}
-            </div>
-            <div style={{fontSize:10,color:color}}>✏️</div>
-          </div>
-          {i<plan.length-1&&<Divider/>}
+      {/* Fecha de inicio */}
+      <div style={{background:color+"12",border:`1px solid ${color}44`,borderRadius:8,padding:"11px 13px",marginBottom:12}}>
+        <div style={{fontSize:8,color:color,letterSpacing:2,marginBottom:6,fontWeight:700}}>📅 FECHA DE INICIO DEL PLAN</div>
+        <div style={{fontSize:10,color:C.muted,marginBottom:8,lineHeight:1.5}}>Podés cargar el plan hoy y poner la fecha real en que el alumno empieza. El HOY avanza de semana automáticamente.</div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <input type="date" value={fechaInicio} onChange={e=>setFechaInicio(e.target.value)} style={{...inp_s,flex:1,borderColor:color+"44"}}/>
+          <button onClick={guardarFechaInicio} disabled={!fechaInicio||guardandoFecha} style={{padding:"8px 12px",background:fechaOk?C.green:color,color:C.white,border:"none",borderRadius:6,fontFamily:"inherit",fontWeight:700,fontSize:9,cursor:"pointer",whiteSpace:"nowrap",transition:"background .3s"}}>{fechaOk?"✓ OK":guardandoFecha?"...":"GUARDAR"}</button>
         </div>
-      ))}
+        {fechaInicio&&<div style={{fontSize:9,color:C.muted,marginTop:5}}>El plan arranca el {new Date(fechaInicio+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}.</div>}
+      </div>
+      <div style={{fontSize:10,color:C.muted,marginBottom:10,lineHeight:1.5}}>
+        {plan.length===0?"Sin días cargados. Tocá '+ Agregar día' para empezar.":"Tocá un día para editarlo. Podés cargar varias semanas."}
+      </div>
+
+      {plan.length===0&&(
+        <div style={{textAlign:"center",padding:"20px 16px",background:C.card,border:`1px dashed ${color}66`,borderRadius:8,marginBottom:12}}>
+          <div style={{fontSize:24,marginBottom:6}}>📋</div>
+          <div style={{fontSize:12,color:C.muted}}>Sin días cargados todavía</div>
+          <div style={{fontSize:10,color:C.muted,marginTop:4}}>Empezá agregando el primer día del plan</div>
+        </div>
+      )}
+
+      {/* Plan agrupado por semanas */}
+      {semanas.map(sem=>{
+        const diasSem=plan.filter(d=>(d.semana||1)===sem);
+        if(diasSem.length===0)return null;
+        return(
+          <div key={sem} style={{marginBottom:12}}>
+            <div style={{fontSize:8,color:color,letterSpacing:2,fontWeight:700,marginBottom:6,padding:"4px 8px",background:color+"15",borderRadius:4,display:"inline-block"}}>
+              SEMANA {sem}
+            </div>
+            {diasSem.map((d,i)=>(
+              <div key={d.id||i}>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 0",opacity:d.tipo==="Descanso"?.5:1}}>
+                  <div style={{width:30,fontSize:10,fontWeight:900,color:d.tipo==="Descanso"?C.muted:color,flexShrink:0}}>{d.dia}</div>
+                  <div style={{width:6,height:6,borderRadius:"50%",background:d.completado?C.green:d.tipo==="Descanso"?C.border:color,flexShrink:0}}/>
+                  <div style={{flex:1,cursor:"pointer"}} onClick={()=>setDiaEdit(d)}>
+                    <div style={{fontSize:11,fontWeight:600,color:d.completado?C.muted:d.tipo==="Descanso"?C.muted:C.white}}>{d.tipo}</div>
+                    {d.detalle&&<div style={{fontSize:9,color:C.muted}}>{d.detalle}</div>}
+                  </div>
+                  {d.completado&&<span style={{color:C.green,fontSize:10}}>✓</span>}
+                  <button onClick={()=>setDiaEdit(d)} style={{padding:"4px 7px",background:"none",border:`1px solid ${color}44`,borderRadius:4,color:color,fontSize:10,cursor:"pointer"}}>✏️</button>
+                  <button onClick={()=>eliminarDia(d.id)} style={{padding:"4px 7px",background:"none",border:`1px solid ${C.red}33`,borderRadius:4,color:C.red,fontSize:10,cursor:"pointer"}}>🗑️</button>
+                </div>
+                {i<diasSem.length-1&&<Divider/>}
+              </div>
+            ))}
+          </div>
+        );
+      })}
+
+      <button onClick={()=>{setSemanaNew(maxSemana);setMostrarSelectorDia(true);}} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,width:"100%",padding:"10px",marginTop:4,background:"none",border:`1px dashed ${color}66`,borderRadius:8,color:color,fontFamily:"inherit",fontWeight:700,fontSize:10,letterSpacing:1,cursor:"pointer"}}>
+        <span style={{fontSize:16,lineHeight:1}}>+</span> AGREGAR DÍA
+      </button>
+
+      {/* Selector de día de la semana */}
+      {mostrarSelectorDia&&(
+        <div style={{position:"fixed",inset:0,zIndex:500,background:"#000000cc",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setMostrarSelectorDia(false)}>
+          <div style={{background:C.surface,border:`1px solid ${C.borderHi}`,borderRadius:12,width:320,padding:20}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:9,color:color,letterSpacing:3,marginBottom:6,fontWeight:700}}>// SELECCIONÁ EL DÍA</div>
+            <div style={{fontSize:9,color:C.muted,marginBottom:8}}>¿A qué semana pertenece?</div>
+            <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+              {[...Array(maxSemana+1)].map((_,i)=>{
+                const s=i+1;
+                return(
+                  <button key={s} onClick={()=>setSemanaNew(s)} style={{padding:"5px 10px",border:`1px solid ${semanaNew===s?color:C.border}`,borderRadius:5,background:semanaNew===s?color+"22":"none",color:semanaNew===s?color:C.muted,fontFamily:"inherit",fontWeight:700,fontSize:9,cursor:"pointer"}}>
+                    {s<=maxSemana?`S${s}`:`+ Nueva S${s}`}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{fontSize:9,color:C.muted,marginBottom:8}}>Día de la semana:</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+              {DIAS_OPCIONES.map(d=>(
+                <button key={d} onClick={()=>{
+                  const orden=(semanaNew-1)*7+(DIAS_IDX[d]||0)+1;
+                  const nuevoDia={dia:d,semana:semanaNew,orden,tipo:"Descanso",detalle:"",distancia:"",ritmo:"",series:"",descanso:"",carga:"",frecuencia:"",comentario:"",ejercicios:[],completado:false};
+                  setMostrarSelectorDia(false);
+                  setDiaEdit(nuevoDia);
+                }} style={{padding:"10px 6px",background:C.card,border:`1px solid ${C.border}`,borderRadius:7,color:C.white,fontFamily:"inherit",fontWeight:900,fontSize:12,cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=color+"22";e.currentTarget.style.borderColor=color+"66";}} onMouseLeave={e=>{e.currentTarget.style.background=C.card;e.currentTarget.style.borderColor=C.border;}}>
+                  {d}
+                </button>
+              ))}
+            </div>
+            <button onClick={()=>setMostrarSelectorDia(false)} style={{width:"100%",marginTop:12,padding:"8px",background:"none",border:`1px solid ${C.border}`,borderRadius:6,color:C.muted,fontFamily:"inherit",fontSize:9,cursor:"pointer"}}>CANCELAR</button>
+          </div>
+        </div>
+      )}
+
       {diaEdit&&(
         <CargarDia diaData={diaEdit} uid={uid} coleccion={coleccion} onClose={()=>{setDiaEdit(null);recargar();}}/>
       )}
@@ -1104,7 +1204,7 @@ function AlumnoModal({alumno,onClose,onUpdate,alumnos=[]}){
           {tab==="plan"&&(
             <div>
               {mostrarPlanEdit?(
-                <PlanSemanaAdmin uid={alumno.uid} coleccion={colActual} planActual={planActual} onClose={()=>{setMostrarPlanEdit(false);cargarPlanes();}}/>
+                <PlanSemanaAdmin uid={alumno.uid} coleccion={colActual} planActual={planActual} fechaInicioPlan={colActual==="planGym"?alumno.planGymInicio:alumno.planInicio} onClose={()=>{setMostrarPlanEdit(false);cargarPlanes();}} onFechaInicio={(f)=>{}}/>
               ):(
                 <div style={{padding:14}}>
                   {esGymYRunning&&(
@@ -1223,7 +1323,23 @@ function AdminView(){
     setLoading(true);
     const snap=await getDocs(collection(db,"usuarios"));
     const todos=snap.docs.map(d=>({uid:d.id,...d.data()}));
-    setAlumnos(todos.filter(u=>u.role==="alumno"&&u.estado==="activo"));
+    const activos=todos.filter(u=>u.role==="alumno"&&u.estado==="activo");
+    // Calcular progreso real desde entrenamientos completados para cada alumno
+    const alumnosConProgreso=await Promise.all(activos.map(async(a)=>{
+      try{
+        const [snapR,snapG]=await Promise.all([
+          getDocs(collection(db,"usuarios",a.uid,"plan")),
+          getDocs(collection(db,"usuarios",a.uid,"planGym")),
+        ]);
+        const planR=snapR.docs.map(d=>d.data());
+        const planG=snapG.docs.map(d=>d.data());
+        const total=planR.filter(d=>d.tipo!=="Descanso").length+planG.filter(d=>d.tipo!=="Descanso").length;
+        const completados=planR.filter(d=>d.completado&&d.tipo!=="Descanso").length+planG.filter(d=>d.completado&&d.tipo!=="Descanso").length;
+        const progreso=total>0?Math.round((completados/total)*100):0;
+        return{...a,progreso};
+      }catch(e){return{...a,progreso:a.progreso||0};}
+    }));
+    setAlumnos(alumnosConProgreso);
     setSolicitudes(todos.filter(u=>u.role==="alumno"&&u.estado==="pendiente"));
     setLoading(false);
   };
@@ -1422,11 +1538,38 @@ function AlumnoView({user}){
   const totalEntren=totalEntrenR+totalEntrenG;
   const completadosEntren=planRunning.filter(d=>d.completado&&d.tipo!=="Descanso").length+planGym.filter(d=>d.completado&&d.tipo!=="Descanso").length;
   const porcentaje=totalEntren>0?Math.round((completadosEntren/totalEntren)*100):0;
-  // Sincronizar HOY con el día real de la semana
+  // Sincronizar HOY con el día real de la semana y la semana del plan por fecha
   const DIAS_MAP={"0":"DOM","1":"LUN","2":"MAR","3":"MIÉ","4":"JUE","5":"VIE","6":"SÁB"};
   const diaHoy=DIAS_MAP[new Date().getDay().toString()]||"LUN";
-  const entrenamientoHoyR=planRunning.find(d=>d.dia===diaHoy);
-  const entrenamientoHoyG=planGym.find(d=>d.dia===diaHoy);
+  const getSemanaActiva=(plan,fechaInicioStr)=>{
+    if(!plan||plan.length===0)return 1;
+    const semanas=[...new Set(plan.map(d=>d.semana||1))].sort((a,b)=>a-b);
+    // Si hay fecha de inicio, calcular semana por días transcurridos
+    if(fechaInicioStr){
+      try{
+        const inicio=new Date(fechaInicioStr+"T12:00:00");
+        const hoy=new Date();
+        hoy.setHours(12,0,0,0);
+        const diasTranscurridos=Math.floor((hoy-inicio)/(1000*60*60*24));
+        if(diasTranscurridos<0)return semanas[0]; // Plan no empezó aún
+        const semanaCalc=Math.floor(diasTranscurridos/7)+1;
+        // Buscar la semana más cercana disponible en el plan
+        const semanasFiltradas=semanas.filter(s=>s<=semanaCalc);
+        if(semanasFiltradas.length>0)return Math.max(...semanasFiltradas);
+        return semanas[0];
+      }catch(e){}
+    }
+    // Sin fecha: usar primera semana con incompletos
+    for(const sem of semanas){
+      const diasSem=plan.filter(d=>(d.semana||1)===sem);
+      if(diasSem.some(d=>!d.completado&&d.tipo!=="Descanso"))return sem;
+    }
+    return semanas[semanas.length-1];
+  };
+  const semanaActivaR=getSemanaActiva(planRunning,perfil.planInicio);
+  const semanaActivaG=getSemanaActiva(planGym,perfil.planGymInicio||perfil.planInicio);
+  const entrenamientoHoyR=planRunning.find(d=>d.dia===diaHoy&&(d.semana||1)===semanaActivaR);
+  const entrenamientoHoyG=planGym.find(d=>d.dia===diaHoy&&(d.semana||1)===semanaActivaG);
   const hoy=planActivo.find(d=>!d.completado&&d.tipo!=="Descanso");
   const ps=planStatus(perfil.planDias);
   const pg=payStatus(perfil.pagado,perfil.diasVencido);
