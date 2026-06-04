@@ -1392,8 +1392,15 @@ function AlumnoView({user}){
 
   const marcarDia=async(diaId,completado,col)=>{
     await updateDoc(doc(db,"usuarios",user.uid,col,diaId),{completado:!completado});
-    if(col==="plan")setPlanRunning(prev=>prev.map(d=>d.id===diaId?{...d,completado:!completado}:d));
-    else setPlanGym(prev=>prev.map(d=>d.id===diaId?{...d,completado:!completado}:d));
+    let nuevoR=planRunning,nuevoG=planGym;
+    if(col==="plan"){nuevoR=planRunning.map(d=>d.id===diaId?{...d,completado:!completado}:d);setPlanRunning(nuevoR);}
+    else{nuevoG=planGym.map(d=>d.id===diaId?{...d,completado:!completado}:d);setPlanGym(nuevoG);}
+    const totalR=nuevoR.filter(d=>d.tipo!=="Descanso").length;
+    const totalG=nuevoG.filter(d=>d.tipo!=="Descanso").length;
+    const total=totalR+totalG;
+    const completados=nuevoR.filter(d=>d.completado&&d.tipo!=="Descanso").length+nuevoG.filter(d=>d.completado&&d.tipo!=="Descanso").length;
+    const nuevoPct=total>0?Math.round((completados/total)*100):0;
+    await updateDoc(doc(db,"usuarios",user.uid),{progreso:nuevoPct});
   };
 
   const guardarPerfil=async()=>{
