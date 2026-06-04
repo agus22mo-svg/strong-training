@@ -599,6 +599,15 @@ function DetalleEvento({evento,uid,onClose}){
               <div style={{fontSize:12,color:C.white,lineHeight:1.6}}>{evento.descripcion}</div>
             </div>
           )}
+          {evento.url&&(
+            <div style={{background:C.card,border:`1px solid ${C.blue}33`,borderRadius:8,padding:"10px 14px",marginBottom:14}}>
+              <div style={{fontSize:9,color:C.muted,letterSpacing:2,marginBottom:6}}>SITIO OFICIAL</div>
+              <a href={evento.url.startsWith("http")?evento.url:`https://${evento.url}`} target="_blank" rel="noopener noreferrer" style={{display:"inline-flex",alignItems:"center",gap:6,color:C.blue,fontSize:12,textDecoration:"none",fontWeight:700}}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                {evento.url.replace(/^https?:\/\//,"")}
+              </a>
+            </div>
+          )}
           {distancias.length>0&&(
             <div style={{marginBottom:14}}>
               <div style={{fontSize:9,color:C.muted,letterSpacing:2,marginBottom:8}}>SELECCIONÁ TU DISTANCIA</div>
@@ -1352,9 +1361,30 @@ function AlumnoView({user}){
         setMedia(data.marcas?.media||"");setMaraton(data.marcas?.maraton||"");
       }
       const pr=await getDocs(query(collection(db,"usuarios",user.uid,"plan"),orderBy("orden")));
-      setPlanRunning(pr.docs.map(d=>({id:d.id,...d.data()})));
-      const pg=await getDocs(query(collection(db,"usuarios",user.uid,"planGym"),orderBy("orden")));
-      setPlanGym(pg.docs.map(d=>({id:d.id,...d.data()})));
+      const planR=pr.docs.map(d=>({id:d.id,...d.data()}));
+      const pg2=await getDocs(query(collection(db,"usuarios",user.uid,"planGym"),orderBy("orden")));
+      const planG=pg2.docs.map(d=>({id:d.id,...d.data()}));
+      // Limpieza automática: archivar y eliminar días vencidos (5 días)
+      const DIAS_ORD=["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"];
+      const hoyIdx=((new Date().getDay()+6)%7); // 0=LUN
+      const limpiar=async(plan,col)=>{
+        for(const dia of plan){
+          const diaIdx=DIAS_ORD.indexOf(dia.dia);
+          if(diaIdx<0)continue;
+          const diasAtras=((hoyIdx-diaIdx)+7)%7;
+          if(diasAtras>=5){
+            // Archivar en resumenSemanal si no está ya
+            await deleteDoc(doc(db,"usuarios",user.uid,col,dia.id));
+          }
+        }
+      };
+      await limpiar(planR,"plan");
+      await limpiar(planG,"planGym");
+      // Recargar tras limpieza
+      const pr2=await getDocs(query(collection(db,"usuarios",user.uid,"plan"),orderBy("orden")));
+      setPlanRunning(pr2.docs.map(d=>({id:d.id,...d.data()})));
+      const pg3=await getDocs(query(collection(db,"usuarios",user.uid,"planGym"),orderBy("orden")));
+      setPlanGym(pg3.docs.map(d=>({id:d.id,...d.data()})));
       setLoading(false);
     };
     cargar();
@@ -1435,26 +1465,58 @@ function AlumnoView({user}){
 
           {tab==="hoy"&&(
             <div style={{padding:12}}>
-              {esGymYRunning&&(
-                <div style={{display:"flex",background:C.surface,borderRadius:7,padding:2,marginBottom:10}}>
-                  {[["running","🏃 RUNNING"],["gym","🏋️ GYM"]].map(([k,l])=>(
-                    <button key={k} onClick={()=>setPlanSubTab(k)} style={{flex:1,padding:"6px",border:"none",borderRadius:5,fontFamily:"inherit",fontWeight:700,fontSize:9,cursor:"pointer",background:planSubTab===k?(k==="gym"?C.amber:C.blue):"transparent",color:planSubTab===k?C.white:C.muted,transition:"all .2s"}}>{l}</button>
-                  ))}
+              <div style={{fontSize:9,color:C.muted,letterSpacing:2,marginBottom:10}}>{diaHoy} — HOY</div>
+              {/* Si no hay plan cargado en absoluto */}
+              {planRunning.length===0&&planGym.length===0&&(
+                <div style={{textAlign:"center",padding:24,background:C.surface,borderRadius:10,border:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:22,marginBottom:6}}>📋</div>
+                  <div style={{fontWeight:700,color:C.white,marginBottom:4}}>Sin plan cargado</div>
+                  <div style={{fontSize:11,color:C.muted}}>Tu entrenador aún no cargó el plan de entrenamiento.</div>
                 </div>
               )}
-              <div style={{fontSize:9,color:planSubTab==="gym"?C.amber:C.blue,letterSpacing:3,marginBottom:8}}>// HOY</div>
-              {!hoy
-                ?<div style={{textAlign:"center",padding:16,color:C.muted,fontSize:12}}>{planActivo.length===0?"Tu entrenador aún no cargó el plan.":"🎉 ¡Semana completada!"}</div>
-                :<div style={{background:C.surface,border:`1px solid ${planSubTab==="gym"?C.amber:C.blue}44`,borderRadius:10,padding:"13px"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><Tag color={planSubTab==="gym"?C.amber:C.blue}>{hoy.tipo}</Tag><span style={{fontSize:8,color:C.muted}}>{hoy.dia}</span></div>
-                  <div style={{fontSize:20,fontWeight:900,color:C.white,margin:"8px 0"}}>{hoy.detalle||hoy.tipo}</div>
-                  {hoy.comentario&&<div style={{fontSize:10,color:C.muted,marginBottom:8,lineHeight:1.5,borderLeft:`2px solid ${C.blue}`,paddingLeft:8}}>{hoy.comentario}</div>}
-                  <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>setDiaDetalle({...hoy,planKey:colActiva})} style={{flex:1,padding:"9px",background:C.surface,color:C.white,border:`1px solid ${C.border}`,borderRadius:7,fontFamily:"inherit",fontWeight:700,fontSize:10,cursor:"pointer"}}>VER DETALLE</button>
-                    <button onClick={()=>marcarDia(hoy.id,hoy.completado,colActiva)} style={{flex:2,padding:"9px",background:planSubTab==="gym"?C.amber:C.blue,color:C.white,border:"none",borderRadius:7,fontFamily:"inherit",fontWeight:900,fontSize:10,letterSpacing:1,cursor:"pointer"}}>COMPLETADO ✓</button>
+              {/* Running de hoy */}
+              {entrenamientoHoyR&&entrenamientoHoyR.tipo!=="Descanso"&&(
+                <div style={{background:C.surface,border:`1px solid ${C.blue}44`,borderRadius:10,padding:"13px",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:7}}>
+                    <div style={{width:7,height:7,borderRadius:"50%",background:C.blue,boxShadow:`0 0 6px ${C.blue}`,flexShrink:0}}/>
+                    <span style={{fontSize:8,color:C.blue,letterSpacing:2,fontWeight:700}}>RUNNING</span>
+                    <Tag color={C.blue}>{entrenamientoHoyR.tipo}</Tag>
+                  </div>
+                  <div style={{fontSize:20,fontWeight:900,color:C.white,margin:"6px 0"}}>{entrenamientoHoyR.detalle||entrenamientoHoyR.tipo}</div>
+                  {entrenamientoHoyR.comentario&&<div style={{fontSize:10,color:C.white,marginBottom:9,lineHeight:1.5,borderLeft:`2px solid ${C.blue}`,paddingLeft:8,background:C.blueDim,borderRadius:"0 6px 6px 0",padding:"6px 8px"}}>{entrenamientoHoyR.comentario}</div>}
+                  <div style={{display:"flex",gap:7,marginTop:8}}>
+                    <button onClick={()=>setDiaDetalle({...entrenamientoHoyR,planKey:"plan"})} style={{flex:1,padding:"8px",background:"none",color:C.white,border:`1px solid ${C.border}`,borderRadius:7,fontFamily:"inherit",fontWeight:700,fontSize:9,cursor:"pointer"}}>VER DETALLE</button>
+                    <button onClick={()=>marcarDia(entrenamientoHoyR.id,entrenamientoHoyR.completado,"plan")} style={{flex:2,padding:"8px",background:entrenamientoHoyR.completado?C.mutedDim:C.blue,color:C.white,border:"none",borderRadius:7,fontFamily:"inherit",fontWeight:900,fontSize:9,letterSpacing:1,cursor:"pointer"}}>{entrenamientoHoyR.completado?"✓ COMPLETADO":"MARCAR COMPLETADO"}</button>
                   </div>
                 </div>
-              }
+              )}
+              {/* Gym de hoy */}
+              {esGymYRunning&&entrenamientoHoyG&&entrenamientoHoyG.tipo!=="Descanso"&&(
+                <div style={{background:C.surface,border:`1px solid ${C.amber}44`,borderRadius:10,padding:"13px",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:7}}>
+                    <div style={{width:7,height:7,borderRadius:"50%",background:C.amber,flexShrink:0}}/>
+                    <span style={{fontSize:8,color:C.amber,letterSpacing:2,fontWeight:700}}>GYM</span>
+                    <Tag color={C.amber}>{entrenamientoHoyG.tipo}</Tag>
+                  </div>
+                  <div style={{fontSize:20,fontWeight:900,color:C.white,margin:"6px 0"}}>{entrenamientoHoyG.detalle||entrenamientoHoyG.tipo}</div>
+                  {entrenamientoHoyG.comentario&&<div style={{fontSize:10,color:C.white,marginBottom:9,lineHeight:1.5,borderLeft:`2px solid ${C.amber}`,paddingLeft:8,background:"#1A1000",borderRadius:"0 6px 6px 0",padding:"6px 8px"}}>{entrenamientoHoyG.comentario}</div>}
+                  <div style={{display:"flex",gap:7,marginTop:8}}>
+                    <button onClick={()=>setDiaDetalle({...entrenamientoHoyG,planKey:"planGym"})} style={{flex:1,padding:"8px",background:"none",color:C.white,border:`1px solid ${C.border}`,borderRadius:7,fontFamily:"inherit",fontWeight:700,fontSize:9,cursor:"pointer"}}>VER DETALLE</button>
+                    <button onClick={()=>marcarDia(entrenamientoHoyG.id,entrenamientoHoyG.completado,"planGym")} style={{flex:2,padding:"8px",background:entrenamientoHoyG.completado?C.mutedDim:C.amber,color:C.white,border:"none",borderRadius:7,fontFamily:"inherit",fontWeight:900,fontSize:9,letterSpacing:1,cursor:"pointer"}}>{entrenamientoHoyG.completado?"✓ COMPLETADO":"MARCAR COMPLETADO"}</button>
+                  </div>
+                </div>
+              )}
+              {/* Descanso o sin actividad hoy */}
+              {planRunning.length>0&&(
+                (!entrenamientoHoyR||entrenamientoHoyR.tipo==="Descanso")&&
+                (!esGymYRunning||!entrenamientoHoyG||entrenamientoHoyG.tipo==="Descanso")
+              )&&(
+                <div style={{textAlign:"center",padding:"24px 16px",background:C.surface,borderRadius:10,border:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:24,marginBottom:6}}>💤</div>
+                  <div style={{fontWeight:900,fontSize:13,color:C.white,marginBottom:4}}>Hoy no tenés actividad planificada</div>
+                  <div style={{fontSize:11,color:C.muted,lineHeight:1.6}}>Aprovechá para recuperarte. El descanso también es entrenamiento.</div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1523,21 +1585,29 @@ function AlumnoView({user}){
             <div style={{padding:12}}>
               <div style={{fontSize:9,color:C.pink,letterSpacing:3,marginBottom:8}}>// MI CICLO</div>
               {ci?(
-                <div style={{background:C.pinkDim,border:`1px solid ${C.pink}33`,borderRadius:10,padding:"12px"}}>
+                <div style={{background:C.pinkDim,border:`1px solid ${C.pink}33`,borderRadius:10,padding:"12px",marginBottom:12}}>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:8}}>
-                    {[{label:"FASE",value:ci.fase,color:{"Menstruación":C.pink,"Folicular":C.blue,"Ovulación":C.green,"Lútea":C.amber}[ci.fase]||C.muted},{label:"DÍA",value:`Día ${ci.diaEnCiclo}`,color:C.white},{label:"PRÓXIMA",value:`En ${ci.diasHastaProxima}d`,color:ci.diasHastaProxima<=3?C.pink:C.muted},{label:"ESTADO",value:ci.enMenstruacion?"En curso":"Activo",color:ci.enMenstruacion?C.pink:C.green}].map(item=>(
+                    {[
+                      {label:"FASE",value:ci.fase,color:{"Menstruación":C.pink,"Folicular":C.blue,"Ovulación":C.green,"Lútea":C.amber}[ci.fase]||C.muted},
+                      {label:"DÍA DEL CICLO",value:`${ci.diaEnCiclo} / ${ci.durCiclo}`,color:C.white},
+                      {label:"PRÓXIMO PERÍODO",value:`En ${ci.diasHastaProxima}d`,color:ci.diasHastaProxima<=3?C.pink:C.muted},
+                      {label:"OVULACIÓN EST.",value:(()=>{const d=14-ci.diaEnCiclo;return d>0?`En ~${d}d`:"Esta semana";})(),color:C.green},
+                      {label:"DURACIÓN CICLO",value:`${ci.durCiclo} días`,color:C.white},
+                      {label:"DURACIÓN PERÍODO",value:`${ci.durMens} días`,color:C.white},
+                    ].map(item=>(
                       <div key={item.label} style={{background:C.card,borderRadius:7,padding:"8px 10px"}}><div style={{fontSize:7,color:C.muted,letterSpacing:1.5,marginBottom:2}}>{item.label}</div><div style={{fontSize:11,fontWeight:700,color:item.color}}>{item.value}</div></div>
                     ))}
                   </div>
-                  <div style={{padding:"9px 11px",background:C.surface,borderRadius:7}}>
+                  <div style={{padding:"9px 11px",background:C.surface,borderRadius:7,marginBottom:8}}>
                     <div style={{fontSize:7,color:C.muted,letterSpacing:2,marginBottom:3}}>RECOMENDACIÓN</div>
                     <div style={{fontSize:11,color:C.white,lineHeight:1.6}}>{ci.fase==="Menstruación"?"Priorizá el descanso. Movilidad suave, sin cargas intensas los primeros 2 días.":ci.fase==="Folicular"?"Fase de alta energía. Ideal para intervalos y fuerza.":ci.fase==="Ovulación"?"Pico de rendimiento. Aprovechá para tus mejores sesiones.":"Energía más baja. Mantené el volumen pero bajá la intensidad."}</div>
                   </div>
+                  <CicloCalendario ci={ci} ciclo={perfil.ciclo}/>
                 </div>
-              ):<div style={{color:C.muted,fontSize:12,textAlign:"center",padding:"12px 0 16px"}}>Aún no cargaste los datos de tu ciclo.</div>}
-              <div style={{marginTop:12}}>
-                <CicloAlumnaForm uid={user.uid} cicloActual={perfil.ciclo} onGuardado={data=>{setPerfil(prev=>({...prev,ciclo:data}));}}/>
-              </div>
+              ):(
+                <div style={{color:C.muted,fontSize:12,textAlign:"center",padding:"12px 0 16px"}}>Aún no cargaste los datos de tu ciclo.</div>
+              )}
+              <CicloAlumnaForm uid={user.uid} cicloActual={perfil.ciclo} onGuardado={data=>{setPerfil(prev=>({...prev,ciclo:data}));}}/>
             </div>
           )}
 
