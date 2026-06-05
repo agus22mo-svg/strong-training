@@ -1216,9 +1216,21 @@ function AlumnoModal({alumno,onClose,onUpdate,alumnos=[]}){
                   )}
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                     <div><div style={{fontSize:9,color:C.muted,letterSpacing:1}}>PLAN {esGymYRunning?(planSubTab==="gym"?"GYM":"RUNNING"):"ACTUAL"}</div><div style={{fontWeight:700,color:ps.color,marginTop:2,fontSize:11}}>{ps.label}</div></div>
-                    <button onClick={()=>setMostrarPlanEdit(true)} style={{padding:"7px 12px",background:planSubTab==="gym"?C.amber:C.blue,color:C.white,border:"none",borderRadius:6,fontFamily:"inherit",fontWeight:700,fontSize:9,cursor:"pointer"}}>
-                      {planActual.length===0?"+ CARGAR PLAN":"EDITAR PLAN"}
-                    </button>
+                    <div style={{display:"flex",gap:6}}>
+                      {planActual.filter(d=>d.completado).length>0&&(
+                        <button onClick={async()=>{
+                          const col=planSubTab==="gym"?"planGym":"plan";
+                          const completados=planActual.filter(d=>d.completado&&d.id);
+                          await Promise.all(completados.map(d=>deleteDoc(doc(db,"usuarios",alumno.uid,col,d.id))));
+                          cargarPlanes();
+                        }} style={{padding:"7px 10px",background:C.red+"22",color:C.red,border:`1px solid ${C.red}44`,borderRadius:6,fontFamily:"inherit",fontWeight:700,fontSize:9,cursor:"pointer"}}>
+                          🗑 LIMPIAR COMPLETADOS
+                        </button>
+                      )}
+                      <button onClick={()=>setMostrarPlanEdit(true)} style={{padding:"7px 12px",background:planSubTab==="gym"?C.amber:C.blue,color:C.white,border:"none",borderRadius:6,fontFamily:"inherit",fontWeight:700,fontSize:9,cursor:"pointer"}}>
+                        {planActual.length===0?"+ CARGAR PLAN":"EDITAR PLAN"}
+                      </button>
+                    </div>
                   </div>
                   {planActual.length===0
                     ?<div style={{color:C.muted,fontSize:12,textAlign:"center",padding:20,background:C.card,borderRadius:8,border:`1px solid ${C.border}`}}>Sin plan cargado. Hacé click en "Cargar Plan".</div>
@@ -1480,27 +1492,9 @@ function AlumnoView({user}){
       const planR=pr.docs.map(d=>({id:d.id,...d.data()}));
       const pg2=await getDocs(query(collection(db,"usuarios",user.uid,"planGym"),orderBy("orden")));
       const planG=pg2.docs.map(d=>({id:d.id,...d.data()}));
-      // Limpieza automática: archivar y eliminar días vencidos (5 días)
-      const DIAS_ORD=["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"];
-      const hoyIdx=((new Date().getDay()+6)%7); // 0=LUN
-      const limpiar=async(plan,col)=>{
-        for(const dia of plan){
-          const diaIdx=DIAS_ORD.indexOf(dia.dia);
-          if(diaIdx<0)continue;
-          const diasAtras=((hoyIdx-diaIdx)+7)%7;
-          if(diasAtras>=5){
-            // Archivar en resumenSemanal si no está ya
-            await deleteDoc(doc(db,"usuarios",user.uid,col,dia.id));
-          }
-        }
-      };
-      await limpiar(planR,"plan");
-      await limpiar(planG,"planGym");
-      // Recargar tras limpieza
-      const pr2=await getDocs(query(collection(db,"usuarios",user.uid,"plan"),orderBy("orden")));
-      setPlanRunning(pr2.docs.map(d=>({id:d.id,...d.data()})));
-      const pg3=await getDocs(query(collection(db,"usuarios",user.uid,"planGym"),orderBy("orden")));
-      setPlanGym(pg3.docs.map(d=>({id:d.id,...d.data()})));
+      // Limpieza automática desactivada temporalmente
+      setPlanRunning(planR);
+      setPlanGym(planG);
       setLoading(false);
     };
     cargar();
