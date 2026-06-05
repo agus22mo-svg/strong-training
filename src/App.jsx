@@ -494,7 +494,7 @@ function PlanSemanaAdmin({uid,coleccion,planActual,fechaInicioPlan,onClose,onFec
       {/* Selector de día de la semana */}
       {mostrarSelectorDia&&(
         <div style={{position:"fixed",inset:0,zIndex:500,background:"#000000cc",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setMostrarSelectorDia(false)}>
-          <div style={{background:C.surface,border:`1px solid ${C.borderHi}`,borderRadius:12,width:320,padding:20}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:C.surface,border:`1px solid ${C.borderHi}`,borderRadius:12,width:320,maxWidth:"90%",padding:20,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:9,color:color,letterSpacing:3,marginBottom:6,fontWeight:700}}>// SELECCIONÁ EL DÍA</div>
             <div style={{fontSize:9,color:C.muted,marginBottom:8}}>¿A qué semana pertenece?</div>
             <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
@@ -508,14 +508,14 @@ function PlanSemanaAdmin({uid,coleccion,planActual,fechaInicioPlan,onClose,onFec
               })}
             </div>
             <div style={{fontSize:9,color:C.muted,marginBottom:8}}>Día de la semana:</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
               {DIAS_OPCIONES.map(d=>(
                 <button key={d} onClick={()=>{
                   const orden=(semanaNew-1)*7+(DIAS_IDX[d]||0)+1;
                   const nuevoDia={dia:d,semana:semanaNew,orden,tipo:"Descanso",detalle:"",distancia:"",ritmo:"",series:"",descanso:"",carga:"",frecuencia:"",comentario:"",ejercicios:[],completado:false};
                   setMostrarSelectorDia(false);
                   setDiaEdit(nuevoDia);
-                }} style={{padding:"10px 6px",background:C.card,border:`1px solid ${C.border}`,borderRadius:7,color:C.white,fontFamily:"inherit",fontWeight:900,fontSize:12,cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=color+"22";e.currentTarget.style.borderColor=color+"66";}} onMouseLeave={e=>{e.currentTarget.style.background=C.card;e.currentTarget.style.borderColor=C.border;}}>
+                }} style={{padding:"12px 6px",background:C.card,border:`1px solid ${C.border}`,borderRadius:7,color:C.white,fontFamily:"inherit",fontWeight:900,fontSize:13,cursor:"pointer",transition:"all .15s",textAlign:"center"}} onMouseEnter={e=>{e.currentTarget.style.background=color+"22";e.currentTarget.style.borderColor=color+"66";e.currentTarget.style.color=color;}} onMouseLeave={e=>{e.currentTarget.style.background=C.card;e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.white;}}>
                   {d}
                 </button>
               ))}
